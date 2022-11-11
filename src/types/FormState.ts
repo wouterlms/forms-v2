@@ -1,30 +1,47 @@
-import type FormObjectPropertyType from './FormObjectPropertyType'
+import type { FormObjectPropertyType, FormObjectPropertyTypeWithNested, FormObjectPropertyTypeWithValue } from './FormObjectPropertyType'
 import type { FormObject } from './FormObject'
-import type { MaybeAsync } from './MaybeAsync'
+import type { MaybePromise } from './MaybePromise'
+import type { FlattenObjectKeys } from './FlattenObjectKeys'
+
+type GetData<T extends Record<keyof T, FormObjectPropertyType>, B extends boolean> = {
+  [K in keyof T]: T[K] extends FormObjectPropertyTypeWithValue
+    ? B extends true
+      ? T[K]['returns']
+      : T[K]['value']
+    : T[K] extends FormObjectPropertyTypeWithNested
+      ? GetData<T[K], B>
+      : never
+}
+
+type SetData<T extends Record<keyof T, FormObjectPropertyType>> = {
+  [K in keyof T]?: T[K] extends FormObjectPropertyTypeWithValue
+    ? T[K]['value']
+    : T[K] extends FormObjectPropertyTypeWithNested
+      ? SetData<T[K]>
+      : never
+}
+
+type SetErrors<T extends Record<keyof T, FormObjectPropertyType>> = {
+  [K in keyof T]?: T[K] extends FormObjectPropertyTypeWithValue
+    ? string | null
+    : T[K] extends FormObjectPropertyTypeWithNested
+      ? SetErrors<T[K]>
+      : never
+}
 
 export default interface FormState<T extends Record<keyof T, FormObjectPropertyType>> {
   isValid: boolean
 
   state: FormObject<T>
 
-  validate: (inputs?: Array<keyof T>, setError?: boolean) => MaybeAsync<void>
+  validate: (inputs?: Array<FlattenObjectKeys<T>>, setError?: boolean) => MaybePromise<void>
 
-  isValidProperty: (property: keyof T) => boolean
+  isValidProperty: (property: FlattenObjectKeys<T>) => boolean
 
-  getData: <B extends boolean = true>(isSubmit?: B) => {
-    [K in keyof T]: B extends true
-      ? T[K]['returns']
-      : T[K]['value']
-  }
-  setData: (data: {
-    [K in keyof T]?: undefined extends T[K]['set']
-      ? T[K]['value']
-      : T[K]['set']
-  }) => Promise<void>
+  getData: <B extends boolean = true>(isSubmit?: B) => GetData<T, B>
+  setData: (data: SetData<T>, acc?: FormObject<T>) => Promise<void>
 
-  setErrors: (errors: {
-    [K in keyof T]?: string | boolean | null
-  }) => void
+  setErrors: (errors: SetErrors<T>, acc?: FormObject<T>) => void
 
   reset: () => void
 }

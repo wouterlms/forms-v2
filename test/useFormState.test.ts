@@ -131,6 +131,8 @@ describe('should', () => {
 
     await formState.setData({ name: 'Jane doe' })
 
+    await nextTick()
+
     expect(formState.isValid).toBeTruthy()
   })
 

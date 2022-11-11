@@ -8,14 +8,15 @@ import type {
   FormObject,
   FormObjectPropertyType,
   FormState,
-  MaybeAsync,
+  MaybePromise,
   UseForm,
 } from '../types'
+import { getNestedKeys, getPropertyByStringKey } from '../utils'
 
 interface Options<T extends Record<keyof T, FormObjectPropertyType>> {
   allowPristineSubmit?: boolean
-  handlePrepare?: () => MaybeAsync<void>
-  handleSubmit: () => MaybeAsync<void>
+  handlePrepare?: () => MaybePromise<void>
+  handleSubmit: () => MaybePromise<void>
 }
 
 export default <T extends Record<keyof T, FormObjectPropertyType>>(
@@ -69,9 +70,11 @@ export default <T extends Record<keyof T, FormObjectPropertyType>>(
     watch(state, () => {
       isDirty.value = false
 
-      for (const key in state) {
-        const { value: initialValue } = initialFormState.value[key]
-        const { value: currentValue } = state[key]
+      const propertyKeys = getNestedKeys(state)
+
+      for (const key of propertyKeys) {
+        const { value: initialValue } = getPropertyByStringKey(key, initialFormState.value)
+        const { value: currentValue } = getPropertyByStringKey(key, state)
 
         // null and 0 length are equal
         if (initialValue === null && typeof currentValue === 'string') {

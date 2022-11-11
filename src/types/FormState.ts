@@ -31,17 +31,14 @@ type SetErrors<T extends Record<keyof T, FormObjectPropertyType>> = {
 
 export default interface FormState<T extends Record<keyof T, FormObjectPropertyType>> {
   isValid: boolean
-
   state: FormObject<T>
 
   validate: (inputs?: Array<FlattenObjectKeys<T>>, setError?: boolean) => MaybePromise<void>
-
   isValidProperty: (property: FlattenObjectKeys<T>) => boolean
 
   getData: <B extends boolean = true>(isSubmit?: B) => GetData<T, B>
-  setData: (data: SetData<T>, acc?: FormObject<T>) => Promise<void>
-
-  setErrors: (errors: SetErrors<T>, acc?: FormObject<T>) => void
+  setData: (data: SetData<T>) => Promise<void>
+  setErrors: (errors: SetErrors<T>) => void
 
   reset: () => void
 }

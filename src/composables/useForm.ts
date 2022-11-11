@@ -11,7 +11,8 @@ import type {
   MaybePromise,
   UseForm,
 } from '../types'
-import { getNestedKeys, getPropertyByStringKey } from '../utils'
+
+import { flattenState } from '../utils'
 
 interface Options<T extends Record<keyof T, FormObjectPropertyType>> {
   allowPristineSubmit?: boolean
@@ -35,13 +36,13 @@ export default <T extends Record<keyof T, FormObjectPropertyType>>(
 
   const { state } = formState
 
-  const initialFormState = ref<FormObject<T>>(JSON.parse(JSON.stringify(state)))
+  let initialState: FormObject<T> = JSON.parse(JSON.stringify(state))
 
   const prepare = async (): Promise<void> => {
     await handlePrepare?.()
 
     isReady.value = true
-    initialFormState.value = JSON.parse(JSON.stringify(state))
+    initialState = JSON.parse(JSON.stringify(state))
   }
 
   const submit = async (): Promise<void> => {
@@ -61,20 +62,21 @@ export default <T extends Record<keyof T, FormObjectPropertyType>>(
 
     await handleSubmit()
 
-    initialFormState.value = JSON.parse(JSON.stringify(state))
+    initialState = JSON.parse(JSON.stringify(state))
     isDirty.value = false
     isSubmitting.value = false
   }
 
   const watchFormState = (): void => {
+    const flatState = flattenState(state)
+    const flatInitialState = flattenState(initialState)
+
     watch(state, () => {
       isDirty.value = false
 
-      const propertyKeys = getNestedKeys(state)
-
-      for (const key of propertyKeys) {
-        const { value: initialValue } = getPropertyByStringKey(key, initialFormState.value)
-        const { value: currentValue } = getPropertyByStringKey(key, state)
+      for (const key in flatState) {
+        const { value: initialValue } = flatInitialState[key]
+        const { value: currentValue } = flatState[key]
 
         // null and 0 length are equal
         if (initialValue === null && typeof currentValue === 'string') {

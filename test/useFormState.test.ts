@@ -92,7 +92,7 @@ describe('should', () => {
     })
   })
 
-  it ('setData()', () => {
+  it ('setData()', async () => {
     const formState = useFormState<FormState>(reactive({
       id: {
         value: null,
@@ -102,7 +102,7 @@ describe('should', () => {
       },
     }))
 
-    formState.setData({
+    await formState.setData({
       name: 'Jane Doe',
     })
 

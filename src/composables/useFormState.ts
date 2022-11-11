@@ -7,17 +7,14 @@ import {
 } from 'vue'
 
 import {
-  getNestedKeys,
-  getPropertyByStringKey,
-  isNestedProperty,
+  flattenObject,
+  flattenState,
 } from '../utils'
 
 import type {
   FlattenObjectKeys,
   FormObject,
   FormObjectPropertyType,
-  FormObjectPropertyTypeWithValue,
-  FormObjectPropertyWithValue,
   FormState,
 } from '../types'
 
@@ -25,37 +22,38 @@ export default <T extends Record<keyof T, FormObjectPropertyType>>(state: FormOb
   if (!isReactive(state))
     throw new Error('formState must be reactive')
 
-  const initialFormState = JSON.parse(JSON.stringify(state))
+  const initialState = JSON.parse(JSON.stringify(state))
 
   const errorMap = reactive(new Map())
 
   const isInvalidAfterSettingErrorsManually = ref(false)
 
+  const flatState = flattenState(state)
+
   const isValid = computed(
     () => [...errorMap.values()].every(error => !error) && !isInvalidAfterSettingErrorsManually.value,
   )
 
-  const setObjectValueByStringKey = (
-    path: FlattenObjectKeys<T>,
-    value: unknown,
-    obj: Record<string, unknown>,
-    separator = '.',
-  ): void => {
-    const properties: string[] = Array.isArray(path) ? path : path.split(separator)
+  const setObjectValueByFlatKey = (obj: Record<string, unknown>, key: string, value: unknown): void => {
+    const [head, ...rest] = key.split('.')
 
-    properties.reduce((prev, curr, index) => {
-      if (index === properties.length - 1)
-        prev[curr] = value
-      else if (prev[curr] === undefined)
-        prev[curr] = {}
+    if (rest.length === 0) {
+      obj[head] = value
+      return
+    }
 
-      return prev[curr]
-    }, obj as any)
+    if (obj[head] === undefined)
+      obj[head] = {}
+
+    setObjectValueByFlatKey(obj[head] as Record<string, unknown>, rest.join('.'), value)
   }
 
-  const validateProperty = async (propertyKey: FlattenObjectKeys<T>, setError = true): Promise<void> => {
-    const property = getPropertyByStringKey(propertyKey, state)
+  const isValidProperty: FormState<T>['isValidProperty'] = (property) => {
+    return !errorMap.get(property)
+  }
 
+  const validateProperty = async (propertyKey: keyof FlattenObjectKeys<T>, setError = true) => {
+    const property = flatState[propertyKey]
     const { value, validate } = property
 
     if (validate === undefined)
@@ -64,136 +62,108 @@ export default <T extends Record<keyof T, FormObjectPropertyType>>(state: FormOb
     errorMap.set(propertyKey, true)
 
     const validationResponse = await validate(value)
-    errorMap.set(propertyKey, validationResponse === false || typeof validationResponse === 'string')
+    errorMap.set(propertyKey, typeof validationResponse === 'string')
 
     if (setError)
       property.error = validationResponse
   }
 
   const validate: FormState<T>['validate'] = async (propertyKeys, setError = true) => {
-    const keysToValidate = (propertyKeys ?? getNestedKeys(state))
+    const keysToValidate = (propertyKeys ?? Object.keys(flatState))
 
-    for (const keyToValidate of keysToValidate) {
-      const property = getPropertyByStringKey(keyToValidate, state)
+    for (const key of keysToValidate) {
+      const { validate } = flatState[key as keyof FlattenObjectKeys<T>]
 
-      if (property.validate === undefined)
+      if (validate === undefined)
         continue
 
-      await validateProperty(keyToValidate as FlattenObjectKeys<T, keyof T>, setError)
+      await validateProperty(key as keyof FlattenObjectKeys<T>, setError)
     }
   }
 
-  const isValidProperty: FormState<T>['isValidProperty'] = (property) => {
-    return !errorMap.get(property)
-  }
-
   const getData: FormState<T>['getData'] = (isSubmit) => {
-    const propertyKeys = getNestedKeys(state)
-
-    return propertyKeys.reduce((data, propertyKey) => {
-      const property = getPropertyByStringKey(propertyKey, state)
+    return Object.keys(flatState).reduce((data, key) => {
+      const property = flatState[key as keyof FlattenObjectKeys<T>]
 
       const { value, get } = property
 
       if (get !== undefined && isSubmit !== false)
-        setObjectValueByStringKey(propertyKey as FlattenObjectKeys<T, keyof T>, get(value), data)
+        setObjectValueByFlatKey(data, key, get(value))
       else
-        setObjectValueByStringKey(propertyKey as FlattenObjectKeys<T, keyof T>, value, data)
+        setObjectValueByFlatKey(data, key, value)
 
       return data
     }, {} as any)
   }
 
-  const setData: FormState<T>['setData'] = async (data, acc = state) => {
-    for (const propertyKey in acc) {
-      const property = acc[propertyKey]
-      const value = data[propertyKey]
+  const setData: FormState<T>['setData'] = async (data) => {
+    const flatData = flattenObject(data)
 
-      if (value === undefined)
-        continue
-
-      if (isNestedProperty(property as FormObjectPropertyType))
-        return setData(value as typeof data, acc[propertyKey] as FormObject<T>)
-
-      const { set } = property as FormObjectPropertyWithValue<FormObjectPropertyTypeWithValue>
+    for (const key in flatData) {
+      const { set } = flatState[key]
 
       if (set === undefined)
-        acc[propertyKey].value = value
+        setObjectValueByFlatKey(state, `${key}.value`, flatData[key])
       else
-        acc[propertyKey].value = await set(value)
+        setObjectValueByFlatKey(state, `${key}.value`, await set(flatData[key]))
     }
   }
 
-  const setErrors: FormState<T>['setErrors'] = (errors, acc = state) => {
-    for (const propertyKey in acc) {
-      const property = acc[propertyKey]
-      const error = errors[propertyKey]
+  const setErrors: FormState<T>['setErrors'] = (errors) => {
+    const flatErrors = flattenObject(errors)
 
-      if (error === undefined)
-        continue
-
-      if (isNestedProperty(property as FormObjectPropertyType))
-        return setErrors(error as typeof errors, acc[propertyKey] as FormObject<T>)
-
-      acc[propertyKey].error = error as string | null
-    }
+    for (const key in flatErrors)
+      setObjectValueByFlatKey(state, `${key}.error`, flatErrors[key])
 
     isInvalidAfterSettingErrorsManually.value = true
   }
 
   const validateInitialState = async (): Promise<void> => {
-    const propertyKeys = getNestedKeys(state)
+    for (const key in flatState) {
+      const { validate } = flatState[key]
 
-    for (const propertyKey of propertyKeys) {
-      errorMap.set(propertyKey, false)
-
-      const { validate } = getPropertyByStringKey(propertyKey, state)
+      errorMap.set(key, false)
 
       if (validate !== undefined)
-        validateProperty(propertyKey as FlattenObjectKeys<T, keyof T>, false)
+        await validateProperty(key, false)
     }
   }
 
   const createValidationWatchers = (): void => {
-    const propertyKeys = getNestedKeys(state)
+    for (const key in flatState) {
+      const property = flatState[key]
 
-    for (const propertyKey of propertyKeys) {
-      const property = getPropertyByStringKey(propertyKey, state)
+      watch([
+        () => property.value, () => property.validate?.(property.value),
+      ], () => {
+        if (property.validate !== undefined)
+          validateProperty(key)
 
-      watch(
-        [() => property.value, () => property.validate?.(property.value)],
-        () => {
-          if (property.validate !== undefined)
-            validateProperty(propertyKey as FlattenObjectKeys<T, keyof T>)
-
-          isInvalidAfterSettingErrorsManually.value = false
-        }, { deep: true },
-      )
+        isInvalidAfterSettingErrorsManually.value = false
+      }, { deep: true })
     }
   }
 
   const reset: FormState<T>['reset'] = () => {
-    const propertyKeys = getNestedKeys(state)
+    const flatInitialState = flattenState(initialState)
 
-    for (const propertyKey of propertyKeys) {
-      const property = getPropertyByStringKey(propertyKey, state)
-      const { value: initialValue } = getPropertyByStringKey(propertyKey, initialFormState)
+    for (const key in flatState) {
+      const property = flatState[key]
+      const { value: initialValue } = flatInitialState[key]
 
       property.value = initialValue
       property.error = null
     }
-
-    validateInitialState()
   }
 
   validateInitialState()
   createValidationWatchers()
 
   return reactive({
-    isValid,
     state,
-    validate,
+    isValid,
     isValidProperty,
+    validate,
     getData,
     setData,
     setErrors,

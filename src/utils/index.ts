@@ -1,5 +1,6 @@
 import type {
   FlattenObjectKeys,
+  FormObject,
   FormObjectProperty,
   FormObjectPropertyType,
   FormObjectPropertyTypeWithNested,
@@ -12,18 +13,38 @@ export const isNestedProperty = (property: FormObjectProperty<FormObjectProperty
   return (property as FormObjectPropertyTypeWithValue).value === undefined
 }
 
-export const getPropertyByStringKey = <T extends Record<string, unknown>>(path: FlattenObjectKeys<T>, obj: Record<string, unknown>, separator = '.'): FormObjectPropertyWithValue<FormObjectPropertyTypeWithValue> => {
-  const properties: string[] = Array.isArray(path) ? path : path.split(separator)
-  return properties.reduce((prev, curr) => prev?.[curr as keyof T], obj as any)
+export const flattenState = <T extends Record<keyof T, FormObjectPropertyType>>(obj: FormObject<T>, prefix = ''): Record<keyof FlattenObjectKeys<T>, FormObjectPropertyWithValue<FormObjectPropertyTypeWithValue>> => {
+  return Object.keys(obj).reduce((keys, key) => {
+    const property = obj[key as keyof FormObject<T>]
+
+    if (isNestedProperty(property)) {
+      return {
+        ...keys,
+        ...flattenState(property as FormObject<T>, `${prefix}${key}.`),
+      }
+    }
+
+    return {
+      ...keys,
+      [`${prefix}${key}`]: property,
+    }
+  }, {} as Record<keyof FlattenObjectKeys<T>, FormObjectPropertyWithValue<FormObjectPropertyTypeWithValue>>)
 }
 
-export const getNestedKeys = (object: Record<string, unknown>, prefix = ''): string[] => {
-  return Object.keys(object).reduce((keys, key) => {
-    const value: unknown = object[key]
+export const flattenObject = <T extends Record<string, unknown>>(obj: Record<string, unknown>, prefix = ''): Record<keyof FlattenObjectKeys<T>, unknown> => {
+  return Object.keys(obj).reduce((keys, key) => {
+    const property = obj[key]
 
-    if (isNestedProperty(value as FormObjectPropertyType))
-      return [...keys, ...getNestedKeys(value as Record<string, unknown>, `${prefix}${key}.`)]
+    if (property !== null && typeof property === 'object') {
+      return {
+        ...keys,
+        ...flattenObject(property as Record<string, unknown>, `${prefix}${key}.`),
+      }
+    }
 
-    return [...keys, `${prefix}${key}`] as string[]
-  }, [] as string[])
+    return {
+      ...keys,
+      [`${prefix}${key}`]: property,
+    }
+  }, {} as Record<keyof FlattenObjectKeys<T>, unknown>)
 }

@@ -3,10 +3,10 @@ import type { MaybePromise } from './MaybePromise'
 
 export interface FormObjectPropertyWithValue<T extends FormObjectPropertyTypeWithValue> {
   value: T['value']
-  error?: string | boolean | null
+  error?: string | null
   get?: (value: T['value']) => T['returns']
   set?: (value: T['set']) => MaybePromise<T['value']>
-  validate?: (value: T['value']) => MaybePromise<boolean | string | null>
+  validate?: (value: T['value']) => MaybePromise<string | null>
 }
 
 export type FormObjectPropertyWithNested<T extends FormObjectPropertyTypeWithNested> = {

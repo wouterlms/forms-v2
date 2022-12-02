@@ -68,11 +68,14 @@ export default <T extends Record<keyof T, FormObjectPropertyType>>(
   }
 
   const watchFormState = (): void => {
-    const flatState = flattenState(state)
-    const flatInitialState = flattenState(initialState)
-
     watch(state, () => {
+      if (!isReady.value)
+        return
+
       isDirty.value = false
+
+      const flatState = flattenState(state)
+      const flatInitialState = flattenState(initialState)
 
       for (const key in flatState) {
         const { value: initialValue } = flatInitialState[key]

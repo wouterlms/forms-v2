@@ -9,11 +9,11 @@ import type {
   FormObjectPropertyWithValue,
 } from '../types'
 
-export const isNestedProperty = (property: FormObjectProperty<FormObjectPropertyType>): property is FormObjectPropertyWithNested<FormObjectPropertyTypeWithNested> => {
+export const isNestedProperty = (property: FormObjectProperty<FormObjectPropertyType, any>): property is FormObjectPropertyWithNested<FormObjectPropertyTypeWithNested, any> => {
   return (property as FormObjectPropertyTypeWithValue).value === undefined
 }
 
-export const flattenState = <T extends Record<keyof T, FormObjectPropertyType>>(obj: FormObject<T>, prefix = ''): Record<keyof FlattenObjectKeys<T>, FormObjectPropertyWithValue<FormObjectPropertyTypeWithValue>> => {
+export const flattenState = <T extends Record<keyof T, FormObjectPropertyType>>(obj: FormObject<T>, prefix = ''): Record<keyof FlattenObjectKeys<T>, FormObjectPropertyWithValue<FormObjectPropertyTypeWithValue, any>> => {
   return Object.keys(obj).reduce((keys, key) => {
     const property = obj[key as keyof FormObject<T>]
 
@@ -28,7 +28,7 @@ export const flattenState = <T extends Record<keyof T, FormObjectPropertyType>>(
       ...keys,
       [`${prefix}${key}`]: property,
     }
-  }, {} as Record<keyof FlattenObjectKeys<T>, FormObjectPropertyWithValue<FormObjectPropertyTypeWithValue>>)
+  }, {} as Record<keyof FlattenObjectKeys<T>, FormObjectPropertyWithValue<FormObjectPropertyTypeWithValue, any>>)
 }
 
 export const flattenObject = <T extends Record<string, unknown>>(obj: Record<string, unknown>, prefix = ''): Record<keyof FlattenObjectKeys<T>, unknown> => {

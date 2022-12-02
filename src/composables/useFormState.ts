@@ -61,7 +61,7 @@ export default <T extends Record<keyof T, FormObjectPropertyType>>(state: FormOb
 
     errorMap.set(propertyKey, true)
 
-    const validationResponse = await validate(value)
+    const validationResponse = await validate(value, state)
     errorMap.set(propertyKey, typeof validationResponse === 'string')
 
     if (setError)
@@ -88,7 +88,7 @@ export default <T extends Record<keyof T, FormObjectPropertyType>>(state: FormOb
       const { value, get } = property
 
       if (get !== undefined && isSubmit !== false)
-        setObjectValueByFlatKey(data, key, get(value))
+        setObjectValueByFlatKey(data, key, get(value, state))
       else
         setObjectValueByFlatKey(data, key, value)
 
@@ -100,12 +100,20 @@ export default <T extends Record<keyof T, FormObjectPropertyType>>(state: FormOb
     const flatData = flattenObject(data)
 
     for (const key in flatData) {
-      const { set } = flatState[key]
+      const property = flatState[key] ?? null
+
+      // TODO: fix bug where setting e.g. { key: 'value' } will not work as it thinks the key is key.value instead of just key
+      // console.log({ flatState, key, property })
+
+      if (property === null)
+        continue
+
+      const { set } = property
 
       if (set === undefined)
         setObjectValueByFlatKey(state, `${key}.value`, flatData[key])
       else
-        setObjectValueByFlatKey(state, `${key}.value`, await set(flatData[key]))
+        setObjectValueByFlatKey(state, `${key}.value`, await set(flatData[key], state))
     }
   }
 
@@ -134,7 +142,7 @@ export default <T extends Record<keyof T, FormObjectPropertyType>>(state: FormOb
       const property = flatState[key]
 
       watch([
-        () => property.value, () => property.validate?.(property.value),
+        () => property.value, () => property.validate?.(property.value, state),
       ], () => {
         if (property.validate !== undefined)
           validateProperty(key)

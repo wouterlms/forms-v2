@@ -55,6 +55,19 @@ describe('should', () => {
     expect(form.isDirty).toBeFalsy()
   })
 
+  it('should not be dirty when form is changed in `handlePrepare`', async () => {
+    const form = useForm(formState, {
+      handlePrepare: async () => {
+        await formState.setData({ name: 'John Doe' })
+      },
+      handleSubmit: () => {},
+    })
+
+    await form.prepare()
+
+    expect(form.isDirty).toBeFalsy()
+  })
+
   it('should submit correctly', async () => {
     const form = useForm(formState, {
       handleSubmit: () => new Promise((resolve) => {

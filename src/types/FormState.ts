@@ -15,7 +15,7 @@ type GetData<T extends Record<keyof T, FormObjectPropertyType>, B extends boolea
 
 type SetData<T extends Record<keyof T, FormObjectPropertyType>> = {
   [K in keyof T]?: T[K] extends FormObjectPropertyTypeWithValue
-    ? T[K]['value']
+    ? T[K]['set'] extends undefined ? T[K]['value'] : T[K]['set']
     : T[K] extends FormObjectPropertyTypeWithNested
       ? SetData<T[K]>
       : never

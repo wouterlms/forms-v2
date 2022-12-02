@@ -19,7 +19,7 @@ const formElement: FormElement = {
 
     return () => h('form', {
       novalidate: true,
-      class: 'w-full h-full',
+      class: 'w-full h-full flex flex-1 flex-col',
       onSubmit: (e: Event) => {
         e.preventDefault()
         props.form.submit()
